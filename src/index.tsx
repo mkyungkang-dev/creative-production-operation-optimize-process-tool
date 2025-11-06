@@ -547,6 +547,230 @@ app.get('/api/dashboard/stats', authMiddleware, async (c) => {
 })
 
 // ======================
+// Slack Integration Routes
+// ======================
+
+import { parseSlackCommand, createSlackResponse } from './utils/slack-parser'
+
+/**
+ * POST /api/slack/command
+ * Slack 슬래시 명령어 처리
+ */
+app.post('/api/slack/command', async (c) => {
+  try {
+    // Slack에서 보내는 form-encoded 데이터 파싱
+    const body = await c.req.parseBody()
+    
+    const slackCommand = {
+      command: body.command as string,
+      text: body.text as string,
+      user_name: body.user_name as string,
+      user_id: body.user_id as string,
+      channel_name: body.channel_name as string
+    }
+
+    console.log('Slack command received:', slackCommand)
+
+    // 명령어 파싱
+    const parsed = parseSlackCommand(slackCommand)
+    
+    if (!parsed) {
+      return c.json(createSlackResponse(false, '올바른 명령어 형식이 아닙니다.\n\n사용법:\n' +
+        '• /task create [팀] [작업명] [마감일] [@담당자] [우선순위:숫자]\n' +
+        '• /task complete [작업ID]\n' +
+        '• /task status [작업ID] [상태]\n' +
+        '• /task comment [작업ID] [댓글내용]'))
+    }
+
+    // 작업 생성
+    if (parsed.action === 'create') {
+      // 담당자 이메일 찾기 (Slack username → DB user)
+      let assignedToId = null
+      if (parsed.assignedTo) {
+        const user = await c.env.DB.prepare(
+          'SELECT id FROM users WHERE name LIKE ? OR email LIKE ?'
+        ).bind(`%${parsed.assignedTo}%`, `%${parsed.assignedTo}%`).first()
+        
+        if (user) {
+          assignedToId = user.id
+        }
+      }
+
+      const result = await c.env.DB.prepare(`
+        INSERT INTO tasks (name, team, assigned_to, expected_completion, priority, status, dependencies)
+        VALUES (?, ?, ?, ?, ?, 'pending', '[]')
+      `).bind(
+        parsed.name,
+        parsed.team,
+        assignedToId,
+        parsed.expectedCompletion,
+        parsed.priority || 5
+      ).run()
+
+      // 알림 생성
+      if (assignedToId) {
+        await c.env.DB.prepare(`
+          INSERT INTO notifications (user_id, task_id, message, type)
+          VALUES (?, ?, ?, 'assignment')
+        `).bind(
+          assignedToId,
+          result.meta.last_row_id,
+          `Slack에서 새 작업이 배정되었습니다: "${parsed.name}"`
+        ).run()
+      }
+
+      return c.json(createSlackResponse(true, '작업이 생성되었습니다!', {
+        '작업 ID': result.meta.last_row_id,
+        '작업명': parsed.name,
+        '팀': parsed.team === 'production' ? '생산팀' : '물류팀',
+        '마감일': parsed.expectedCompletion,
+        '우선순위': parsed.priority
+      }))
+    }
+
+    // 작업 완료
+    if (parsed.action === 'complete') {
+      const task = await c.env.DB.prepare(
+        'SELECT * FROM tasks WHERE id = ?'
+      ).bind(parsed.taskId).first()
+
+      if (!task) {
+        return c.json(createSlackResponse(false, `작업 ID ${parsed.taskId}를 찾을 수 없습니다.`))
+      }
+
+      await c.env.DB.prepare(`
+        UPDATE tasks 
+        SET status = 'completed', 
+            actual_completion = date('now'),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(parsed.taskId).run()
+
+      // 알림 생성
+      if (task.assigned_to) {
+        await c.env.DB.prepare(`
+          INSERT INTO notifications (user_id, task_id, message, type)
+          VALUES (?, ?, ?, 'task_update')
+        `).bind(
+          task.assigned_to,
+          parsed.taskId,
+          `작업 "${task.name}"이 Slack에서 완료 처리되었습니다.`
+        ).run()
+      }
+
+      return c.json(createSlackResponse(true, '작업이 완료되었습니다!', {
+        '작업 ID': parsed.taskId,
+        '작업명': task.name,
+        '상태': '완료'
+      }))
+    }
+
+    // 작업 상태 변경
+    if (parsed.action === 'status') {
+      const task = await c.env.DB.prepare(
+        'SELECT * FROM tasks WHERE id = ?'
+      ).bind(parsed.taskId).first()
+
+      if (!task) {
+        return c.json(createSlackResponse(false, `작업 ID ${parsed.taskId}를 찾을 수 없습니다.`))
+      }
+
+      await c.env.DB.prepare(`
+        UPDATE tasks 
+        SET status = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(parsed.status, parsed.taskId).run()
+
+      const statusLabel = parsed.status === 'pending' ? '대기중' : 
+                         parsed.status === 'in_progress' ? '진행중' : '완료'
+
+      // 알림 생성
+      if (task.assigned_to) {
+        await c.env.DB.prepare(`
+          INSERT INTO notifications (user_id, task_id, message, type)
+          VALUES (?, ?, ?, 'task_update')
+        `).bind(
+          task.assigned_to,
+          parsed.taskId,
+          `작업 "${task.name}"의 상태가 "${statusLabel}"(으)로 변경되었습니다.`
+        ).run()
+      }
+
+      return c.json(createSlackResponse(true, '작업 상태가 변경되었습니다!', {
+        '작업 ID': parsed.taskId,
+        '작업명': task.name,
+        '상태': statusLabel
+      }))
+    }
+
+    // 댓글 추가
+    if (parsed.action === 'comment') {
+      const task = await c.env.DB.prepare(
+        'SELECT * FROM tasks WHERE id = ?'
+      ).bind(parsed.taskId).first()
+
+      if (!task) {
+        return c.json(createSlackResponse(false, `작업 ID ${parsed.taskId}를 찾을 수 없습니다.`))
+      }
+
+      // Slack 사용자를 시스템 사용자로 매핑 (간단하게 admin 사용자로)
+      const adminUser = await c.env.DB.prepare(
+        'SELECT id FROM users WHERE role = "admin" LIMIT 1'
+      ).first()
+
+      const result = await c.env.DB.prepare(`
+        INSERT INTO comments (task_id, user_id, content)
+        VALUES (?, ?, ?)
+      `).bind(parsed.taskId, adminUser?.id || 1, `[Slack] ${parsed.comment}`).run()
+
+      return c.json(createSlackResponse(true, '댓글이 추가되었습니다!', {
+        '작업 ID': parsed.taskId,
+        '작업명': task.name,
+        '댓글': parsed.comment
+      }))
+    }
+
+    return c.json(createSlackResponse(false, '알 수 없는 명령어입니다.'))
+
+  } catch (error) {
+    console.error('Slack command error:', error)
+    return c.json(createSlackResponse(false, '서버 오류가 발생했습니다: ' + error))
+  }
+})
+
+/**
+ * GET /api/slack/help
+ * Slack 명령어 도움말
+ */
+app.get('/api/slack/help', (c) => {
+  return c.json({
+    commands: [
+      {
+        command: '/task create [팀] [작업명] [마감일] [@담당자] [우선순위:숫자]',
+        example: '/task create 생산팀 제품A제조 2025-11-20 @john 우선순위:8',
+        description: '새 작업 생성'
+      },
+      {
+        command: '/task complete [작업ID]',
+        example: '/task complete 5',
+        description: '작업 완료 처리'
+      },
+      {
+        command: '/task status [작업ID] [상태]',
+        example: '/task status 3 진행중',
+        description: '작업 상태 변경 (대기중/진행중/완료)'
+      },
+      {
+        command: '/task comment [작업ID] [댓글내용]',
+        example: '/task comment 2 품질 검사 완료',
+        description: '작업에 댓글 추가'
+      }
+    ]
+  })
+})
+
+// ======================
 // Frontend Route
 // ======================
 
