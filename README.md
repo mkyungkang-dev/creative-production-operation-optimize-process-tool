@@ -21,7 +21,15 @@
 
 - **개발 서버**: https://3000-ikt840v0sn38orwf825jj-ad490db5.sandbox.novita.ai
 - **GitHub**: https://github.com/mkyungkang-dev/creative-production-operation-optimize-process-tool
-- **Cloudflare Pages**: (배포 가능 - Cloudflare API 키 필요)
+- **Cloudflare Pages**: (배포 대기 - [배포 가이드](CLOUDFLARE_DEPLOY_GUIDE.md) 참조)
+
+## 📚 문서 가이드
+
+- 📖 **[사용자 가이드](USAGE_GUIDE.md)** - 시스템 사용 방법 상세 설명
+- 🔌 **[API 문서](API_DOCUMENTATION.md)** - 전체 API 엔드포인트 레퍼런스
+- ☁️ **[Cloudflare 배포 가이드](CLOUDFLARE_DEPLOY_GUIDE.md)** - 프로덕션 배포 방법
+- 👥 **[팀 협업 가이드](TEAM_COLLABORATION_GUIDE.md)** - GitHub 협업 워크플로우
+- 🚀 **[GitHub 배포 가이드](GITHUB_DEPLOY_GUIDE.md)** - GitHub 수동 배포 방법
 
 ## 🧪 테스트 계정
 
@@ -246,6 +254,60 @@ npm run deploy:prod
 2. **이메일 알림 없음**: 브라우저 내 알림만 지원 (외부 API 연동 필요)
 3. **파일 업로드 미구현**: Cloudflare R2 연동 예정
 
+## 🚀 빠른 시작 (팀원용)
+
+### 신규 팀원 온보딩
+
+1. **GitHub 초대 수락**
+   - 이메일에서 리포지토리 초대 수락
+
+2. **프로젝트 클론**
+   ```bash
+   git clone https://github.com/mkyungkang-dev/creative-production-operation-optimize-process-tool.git
+   cd creative-production-operation-optimize-process-tool
+   ```
+
+3. **설치 및 실행**
+   ```bash
+   npm install
+   npm run db:reset
+   npm run build
+   pm2 start ecosystem.config.cjs
+   ```
+
+4. **브라우저에서 확인**
+   - http://localhost:3000
+   - 로그인: admin@company.com / password123
+
+자세한 내용은 **[팀 협업 가이드](TEAM_COLLABORATION_GUIDE.md)** 참조
+
+---
+
+## 👥 팀원 초대 방법
+
+1. GitHub 리포지토리 → **Settings** → **Collaborators**
+2. **Add people** 클릭
+3. 팀원의 GitHub 유저네임 입력
+4. 권한 선택: **Write** (추천)
+5. 초대 전송!
+
+자세한 가이드: **[팀 협업 가이드](TEAM_COLLABORATION_GUIDE.md)**
+
+---
+
+## ☁️ Cloudflare 배포 방법
+
+### 필요한 것
+- Cloudflare 계정 (무료)
+- API 토큰
+
+### 배포 단계
+1. Cloudflare API 토큰 생성
+2. **Deploy 탭**에서 API 키 설정
+3. 또는 수동 배포: **[Cloudflare 배포 가이드](CLOUDFLARE_DEPLOY_GUIDE.md)** 참조
+
+---
+
 ## 📝 라이선스
 
 MIT License
@@ -253,3 +315,13 @@ MIT License
 ## 👨‍💻 개발자
 
 Created by MK (Alicia Minkyung) - 2025
+
+## 🤝 기여하기
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+자세한 협업 가이드: **[팀 협업 가이드](TEAM_COLLABORATION_GUIDE.md)**
