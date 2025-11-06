@@ -299,6 +299,330 @@ app.post('/api/tasks', authMiddleware, async (c) => {
     }
 
     return c.json({
+      id: result.meta.last_row_id,
+      name,
+      description,
+      team,
+      assigned_to,
+      expected_completion,
+      priority: priority || 5,
+      status: 'pending'
+    })
+  } catch (error) {
+    console.error('Create task error:', error)
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+})
+
+/**
+ * POST /api/tasks/bulk
+ * Create multiple tasks from uploaded file data
+ */
+app.post('/api/tasks/bulk', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user')
+    const { tasks } = await c.req.json()
+
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      return c.json({ error: 'Tasks array is required and must not be empty' }, 400)
+    }
+
+    const results = {
+      success: [],
+      failed: [],
+      total: tasks.length
+    }
+
+    for (const [index, task] of tasks.entries()) {
+      try {
+        // Validate required fields
+        if (!task.name || !task.team || !task.expected_completion) {
+          results.failed.push({
+            row: index + 2, // +2 because Excel row 1 is header, and array is 0-indexed
+            task: task.name || '(no name)',
+            error: 'Missing required fields: name, team, or expected_completion'
+          })
+          continue
+        }
+
+        // Validate team
+        if (!['production', 'logistics'].includes(task.team)) {
+          results.failed.push({
+            row: index + 2,
+            task: task.name,
+            error: `Invalid team: ${task.team}. Must be 'production' or 'logistics'`
+          })
+          continue
+        }
+
+        // Check permissions
+        if (user.role !== 'admin' && user.role !== task.team) {
+          results.failed.push({
+            row: index + 2,
+            task: task.name,
+            error: `You can only create tasks for your team (${user.role})`
+          })
+          continue
+        }
+
+        // Validate priority
+        const priority = task.priority ? parseInt(task.priority) : 5
+        if (priority < 1 || priority > 10) {
+          results.failed.push({
+            row: index + 2,
+            task: task.name,
+            error: `Invalid priority: ${task.priority}. Must be between 1 and 10`
+          })
+          continue
+        }
+
+        // Find assigned user by name or email
+        let assignedToId = null
+        if (task.assigned_to) {
+          const assignedUser = await c.env.DB.prepare(`
+            SELECT id FROM users WHERE name LIKE ? OR email LIKE ?
+          `).bind(`%${task.assigned_to}%`, `%${task.assigned_to}%`).first()
+          
+          if (assignedUser) {
+            assignedToId = assignedUser.id
+          }
+        }
+
+        // Insert task
+        const result = await c.env.DB.prepare(`
+          INSERT INTO tasks (name, description, team, assigned_to, expected_completion, priority, status, dependencies)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          task.name.trim(),
+          task.description?.trim() || null,
+          task.team,
+          assignedToId,
+          task.expected_completion,
+          priority,
+          task.status || 'pending',
+          task.dependencies || '[]'
+        ).run()
+
+        // Create notification if task is assigned
+        if (assignedToId) {
+          await c.env.DB.prepare(`
+            INSERT INTO notifications (user_id, task_id, message, type)
+            VALUES (?, ?, ?, ?)
+          `).bind(
+            assignedToId,
+            result.meta.last_row_id,
+            `You have been assigned to "${task.name}"`,
+            'assignment'
+          ).run()
+        }
+
+        results.success.push({
+          row: index + 2,
+          task: task.name,
+          id: result.meta.last_row_id
+        })
+      } catch (err) {
+        console.error(`Error processing task at row ${index + 2}:`, err)
+        results.failed.push({
+          row: index + 2,
+          task: task.name || '(error)',
+          error: err instanceof Error ? err.message : 'Unknown error'
+        })
+      }
+    }
+
+    return c.json({
+      message: `Processed ${results.total} tasks: ${results.success.length} succeeded, ${results.failed.length} failed`,
+      results
+    })
+  } catch (error) {
+    console.error('Bulk upload error:', error)
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+})
+
+/**
+ * PUT /api/tasks/bulk
+ * Update multiple tasks from uploaded file data
+ */
+app.put('/api/tasks/bulk', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user')
+    const { tasks } = await c.req.json()
+
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      return c.json({ error: 'Tasks array is required and must not be empty' }, 400)
+    }
+
+    const results = {
+      success: [],
+      failed: [],
+      total: tasks.length
+    }
+
+    for (const [index, task] of tasks.entries()) {
+      try {
+        // Validate task ID
+        if (!task.id) {
+          results.failed.push({
+            row: index + 2,
+            task: task.name || '(no name)',
+            error: 'Task ID is required for updates'
+          })
+          continue
+        }
+
+        // Check if task exists
+        const existingTask = await c.env.DB.prepare(
+          'SELECT * FROM tasks WHERE id = ?'
+        ).bind(task.id).first()
+
+        if (!existingTask) {
+          results.failed.push({
+            row: index + 2,
+            task: task.name || `ID ${task.id}`,
+            error: `Task with ID ${task.id} not found`
+          })
+          continue
+        }
+
+        // Check permissions
+        if (user.role !== 'admin' && user.role !== existingTask.team) {
+          results.failed.push({
+            row: index + 2,
+            task: task.name || `ID ${task.id}`,
+            error: `You can only update tasks for your team (${user.role})`
+          })
+          continue
+        }
+
+        // Build update query dynamically
+        const updates = []
+        const values = []
+
+        if (task.name) {
+          updates.push('name = ?')
+          values.push(task.name.trim())
+        }
+        if (task.description !== undefined) {
+          updates.push('description = ?')
+          values.push(task.description?.trim() || null)
+        }
+        if (task.status && ['pending', 'in_progress', 'completed'].includes(task.status)) {
+          updates.push('status = ?')
+          values.push(task.status)
+        }
+        if (task.priority) {
+          const priority = parseInt(task.priority)
+          if (priority >= 1 && priority <= 10) {
+            updates.push('priority = ?')
+            values.push(priority)
+          }
+        }
+        if (task.expected_completion) {
+          updates.push('expected_completion = ?')
+          values.push(task.expected_completion)
+        }
+
+        // Find assigned user if provided
+        if (task.assigned_to) {
+          const assignedUser = await c.env.DB.prepare(`
+            SELECT id FROM users WHERE name LIKE ? OR email LIKE ?
+          `).bind(`%${task.assigned_to}%`, `%${task.assigned_to}%`).first()
+          
+          if (assignedUser) {
+            updates.push('assigned_to = ?')
+            values.push(assignedUser.id)
+          }
+        }
+
+        if (updates.length === 0) {
+          results.failed.push({
+            row: index + 2,
+            task: task.name || `ID ${task.id}`,
+            error: 'No valid fields to update'
+          })
+          continue
+        }
+
+        // Add task ID to values
+        values.push(task.id)
+
+        // Execute update
+        await c.env.DB.prepare(`
+          UPDATE tasks SET ${updates.join(', ')} WHERE id = ?
+        `).bind(...values).run()
+
+        results.success.push({
+          row: index + 2,
+          task: task.name || `ID ${task.id}`,
+          id: task.id
+        })
+      } catch (err) {
+        console.error(`Error updating task at row ${index + 2}:`, err)
+        results.failed.push({
+          row: index + 2,
+          task: task.name || '(error)',
+          error: err instanceof Error ? err.message : 'Unknown error'
+        })
+      }
+    }
+
+    return c.json({
+      message: `Processed ${results.total} tasks: ${results.success.length} succeeded, ${results.failed.length} failed`,
+      results
+    })
+  } catch (error) {
+    console.error('Bulk update error:', error)
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+})
+
+/**
+ * POST /api/tasks (original - keeping for backward compatibility)
+ * Create new task (single)
+ */
+app.post('/api/tasks/single', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user')
+    const { name, description, team, assigned_to, expected_completion, priority, dependencies } = await c.req.json()
+
+    if (!name || !team || !expected_completion) {
+      return c.json({ error: 'Name, team, and expected_completion are required' }, 400)
+    }
+
+    // Check permissions
+    if (user.role !== 'admin' && user.role !== team) {
+      return c.json({ error: 'You can only create tasks for your team' }, 403)
+    }
+
+    const result = await c.env.DB.prepare(`
+      INSERT INTO tasks (name, description, team, assigned_to, expected_completion, priority, dependencies)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      name,
+      description || null,
+      team,
+      assigned_to || null,
+      expected_completion,
+      priority || 5,
+      dependencies || '[]'
+    ).run()
+
+    // Create notification if task is assigned
+    if (assigned_to) {
+      await c.env.DB.prepare(`
+        INSERT INTO notifications (user_id, task_id, message, type)
+        VALUES (?, ?, ?, ?)
+      `).bind(
+        assigned_to,
+        result.meta.last_row_id,
+        `You have been assigned to "${name}"`,
+        'assignment'
+      ).run()
+    }
+
+    return c.json({
       message: 'Task created successfully',
       taskId: result.meta.last_row_id
     }, 201)
@@ -785,6 +1109,7 @@ app.get('/', (c) => {
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
         <link href="/static/styles.css" rel="stylesheet">
     </head>
     <body class="bg-gray-50">

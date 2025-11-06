@@ -589,8 +589,14 @@ function renderTasksList() {
           </select>
         </div>
         
-        <div class="ml-auto">
+        <div class="ml-auto flex items-center space-x-3">
           ${(state.user?.role === 'admin' || state.user?.role === 'production' || state.user?.role === 'logistics') ? `
+            <button onclick="downloadExcelTemplate()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+              <i class="fas fa-download mr-2"></i>템플릿 다운로드
+            </button>
+            <button onclick="showFileUploadModal()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+              <i class="fas fa-file-upload mr-2"></i>파일 업로드
+            </button>
             <button onclick="showCreateTaskModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
               <i class="fas fa-plus mr-2"></i>새 작업
             </button>
@@ -1391,6 +1397,383 @@ function formatDateTime(dateString) {
     hour: '2-digit', 
     minute: '2-digit' 
   })
+}
+
+// ======================
+// File Upload Functions
+// ======================
+
+/**
+ * Download Excel template for bulk task upload
+ */
+function downloadExcelTemplate() {
+  // Create workbook
+  const wb = XLSX.utils.book_new()
+  
+  // Sample data with instructions
+  const data = [
+    ['작업명', '설명', '팀', '담당자', '예상완료일', '우선순위', '상태'],
+    ['제품 A 제조', '제품 A의 제조 공정', 'production', 'John Park', '2025-11-20', '8', 'pending'],
+    ['원자재 검수', '입고된 원자재 품질 검사', 'logistics', 'Sarah Kim', '2025-11-15', '9', 'pending'],
+    ['포장 작업', '완제품 포장 및 라벨링', 'production', '미배정', '2025-11-25', '5', 'pending']
+  ]
+  
+  // Create worksheet
+  const ws = XLSX.utils.aoa_to_sheet(data)
+  
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 20 }, // 작업명
+    { wch: 30 }, // 설명
+    { wch: 12 }, // 팀
+    { wch: 15 }, // 담당자
+    { wch: 12 }, // 예상완료일
+    { wch: 10 }, // 우선순위
+    { wch: 12 }  // 상태
+  ]
+  
+  // Add worksheet to workbook
+  XLSX.utils.book_append_sheet(wb, ws, '작업 목록')
+  
+  // Create instructions sheet
+  const instructions = [
+    ['📋 작업 일괄 업로드 템플릿 - 사용 방법'],
+    [''],
+    ['1. 필수 항목'],
+    ['   - 작업명: 작업의 이름 (필수)'],
+    ['   - 팀: production (생산팀) 또는 logistics (물류팀) (필수)'],
+    ['   - 예상완료일: YYYY-MM-DD 형식 (예: 2025-11-20) (필수)'],
+    [''],
+    ['2. 선택 항목'],
+    ['   - 설명: 작업에 대한 상세 설명'],
+    ['   - 담당자: 사용자 이름 또는 이메일 (시스템에 등록된 사용자)'],
+    ['   - 우선순위: 1~10 사이의 숫자 (기본값: 5)'],
+    ['   - 상태: pending (대기중), in_progress (진행중), completed (완료)'],
+    [''],
+    ['3. 업로드 방법'],
+    ['   - "작업 목록" 시트에 데이터 입력'],
+    ['   - 파일 저장 (.xlsx, .xls, .csv 형식)'],
+    ['   - 시스템에서 "파일 업로드" 버튼 클릭'],
+    ['   - 파일 선택 후 업로드'],
+    [''],
+    ['4. 주의사항'],
+    ['   - 첫 번째 행(헤더)은 수정하지 마세요'],
+    ['   - 팀 이름은 정확히 입력하세요 (production/logistics)'],
+    ['   - 날짜 형식을 정확히 지켜주세요 (YYYY-MM-DD)'],
+    ['   - 담당자 이름은 시스템에 등록된 사용자여야 합니다'],
+    [''],
+    ['5. 업데이트 모드'],
+    ['   - 기존 작업을 수정하려면 첫 번째 열에 "작업ID" 추가'],
+    ['   - 작업ID가 있으면 해당 작업이 업데이트됩니다'],
+    ['   - 작업ID가 없으면 새로운 작업이 생성됩니다']
+  ]
+  
+  const wsInstructions = XLSX.utils.aoa_to_sheet(instructions)
+  wsInstructions['!cols'] = [{ wch: 80 }]
+  XLSX.utils.book_append_sheet(wb, wsInstructions, '사용 방법')
+  
+  // Download file
+  const today = new Date().toISOString().split('T')[0]
+  XLSX.writeFile(wb, `작업목록_템플릿_${today}.xlsx`)
+  
+  showNotification('템플릿이 다운로드되었습니다', 'success')
+}
+
+/**
+ * Show file upload modal
+ */
+function showFileUploadModal() {
+  showModal(`
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-file-upload mr-2"></i>파일 업로드
+    </h2>
+    
+    <div class="mb-6">
+      <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+        <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4"></i>
+        <p class="text-gray-600 mb-4">엑셀 파일을 선택하거나 드래그하세요</p>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" class="hidden">
+        <button onclick="document.getElementById('fileInput').click()"
+          class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+          <i class="fas fa-folder-open mr-2"></i>파일 선택
+        </button>
+      </div>
+    </div>
+    
+    <div class="mb-6">
+      <label class="flex items-center space-x-2">
+        <input type="radio" name="uploadMode" value="create" checked class="form-radio">
+        <span>새 작업 생성</span>
+      </label>
+      <label class="flex items-center space-x-2 mt-2">
+        <input type="radio" name="uploadMode" value="update" class="form-radio">
+        <span>기존 작업 업데이트 (파일에 작업ID 필요)</span>
+      </label>
+    </div>
+    
+    <div id="previewSection" class="hidden mb-6">
+      <h3 class="font-bold text-gray-800 mb-3">
+        <i class="fas fa-eye mr-2"></i>미리보기
+      </h3>
+      <div id="previewContent" class="bg-gray-50 rounded-lg p-4 max-h-64 overflow-auto"></div>
+    </div>
+    
+    <div id="uploadResults" class="hidden mb-6">
+      <h3 class="font-bold text-gray-800 mb-3">
+        <i class="fas fa-check-circle mr-2"></i>업로드 결과
+      </h3>
+      <div id="resultsContent" class="bg-gray-50 rounded-lg p-4"></div>
+    </div>
+    
+    <div class="flex justify-between">
+      <button onclick="closeModal()"
+        class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition">
+        취소
+      </button>
+      <button id="uploadButton" onclick="processBulkUpload()" disabled
+        class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+        <i class="fas fa-upload mr-2"></i>업로드
+      </button>
+    </div>
+  `)
+  
+  // Attach file input handler
+  document.getElementById('fileInput').addEventListener('change', handleFileSelect)
+}
+
+let uploadedTasks = []
+
+/**
+ * Handle file selection
+ */
+async function handleFileSelect(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  try {
+    showNotification('파일을 읽는 중...', 'info')
+    
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target.result)
+        const workbook = XLSX.read(data, { type: 'array' })
+        
+        // Get first sheet
+        const sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+        
+        // Convert to JSON
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+        
+        if (jsonData.length < 2) {
+          showNotification('파일에 데이터가 없습니다', 'error')
+          return
+        }
+        
+        // Parse tasks
+        const headers = jsonData[0]
+        uploadedTasks = []
+        
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i]
+          if (!row || row.length === 0) continue
+          
+          const task = {}
+          headers.forEach((header, index) => {
+            const value = row[index]
+            
+            // Map Korean headers to English keys
+            switch (header) {
+              case '작업ID':
+              case 'ID':
+                task.id = value
+                break
+              case '작업명':
+              case 'name':
+                task.name = value
+                break
+              case '설명':
+              case 'description':
+                task.description = value
+                break
+              case '팀':
+              case 'team':
+                task.team = value
+                break
+              case '담당자':
+              case 'assigned_to':
+                task.assigned_to = value
+                break
+              case '예상완료일':
+              case 'expected_completion':
+                // Convert Excel date to YYYY-MM-DD
+                if (typeof value === 'number') {
+                  const date = XLSX.SSF.parse_date_code(value)
+                  task.expected_completion = `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`
+                } else {
+                  task.expected_completion = value
+                }
+                break
+              case '우선순위':
+              case 'priority':
+                task.priority = value
+                break
+              case '상태':
+              case 'status':
+                // Map Korean status to English
+                if (value === '대기중') task.status = 'pending'
+                else if (value === '진행중') task.status = 'in_progress'
+                else if (value === '완료') task.status = 'completed'
+                else task.status = value
+                break
+            }
+          })
+          
+          if (task.name) {
+            uploadedTasks.push(task)
+          }
+        }
+        
+        if (uploadedTasks.length === 0) {
+          showNotification('유효한 작업 데이터가 없습니다', 'error')
+          return
+        }
+        
+        // Show preview
+        showFilePreview(uploadedTasks)
+        document.getElementById('uploadButton').disabled = false
+        showNotification(`${uploadedTasks.length}개 작업을 확인했습니다`, 'success')
+      } catch (error) {
+        console.error('File parsing error:', error)
+        showNotification('파일 파싱 중 오류가 발생했습니다: ' + error.message, 'error')
+      }
+    }
+    
+    reader.readAsArrayBuffer(file)
+  } catch (error) {
+    console.error('File read error:', error)
+    showNotification('파일을 읽을 수 없습니다', 'error')
+  }
+}
+
+/**
+ * Show file preview
+ */
+function showFilePreview(tasks) {
+  const previewSection = document.getElementById('previewSection')
+  const previewContent = document.getElementById('previewContent')
+  
+  previewSection.classList.remove('hidden')
+  
+  previewContent.innerHTML = `
+    <div class="text-sm">
+      <p class="font-medium mb-3">총 ${tasks.length}개 작업</p>
+      <div class="space-y-2">
+        ${tasks.slice(0, 5).map(task => `
+          <div class="p-2 bg-white rounded border">
+            <div class="font-medium">${task.name}</div>
+            <div class="text-xs text-gray-600 mt-1">
+              ${task.team === 'production' ? '생산팀' : task.team === 'logistics' ? '물류팀' : task.team} | 
+              ${task.expected_completion} | 
+              우선순위 ${task.priority || 5}
+            </div>
+          </div>
+        `).join('')}
+        ${tasks.length > 5 ? `<p class="text-gray-500 text-center pt-2">... 외 ${tasks.length - 5}개</p>` : ''}
+      </div>
+    </div>
+  `
+}
+
+/**
+ * Process bulk upload
+ */
+async function processBulkUpload() {
+  if (uploadedTasks.length === 0) {
+    showNotification('업로드할 데이터가 없습니다', 'error')
+    return
+  }
+  
+  const uploadMode = document.querySelector('input[name="uploadMode"]:checked').value
+  const uploadButton = document.getElementById('uploadButton')
+  
+  try {
+    uploadButton.disabled = true
+    uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>업로드 중...'
+    
+    const endpoint = uploadMode === 'create' ? '/tasks/bulk' : '/tasks/bulk'
+    const method = uploadMode === 'create' ? 'post' : 'put'
+    
+    const response = await api[method](endpoint, { tasks: uploadedTasks })
+    const { results } = response.data
+    
+    // Show results
+    showUploadResults(results)
+    
+    // Reload tasks
+    await loadTasks()
+    
+    showNotification(
+      `업로드 완료: ${results.success.length}개 성공, ${results.failed.length}개 실패`,
+      results.failed.length === 0 ? 'success' : 'warning'
+    )
+    
+    uploadButton.innerHTML = '<i class="fas fa-check mr-2"></i>완료'
+    
+  } catch (error) {
+    console.error('Bulk upload error:', error)
+    showNotification('업로드 중 오류가 발생했습니다', 'error')
+    uploadButton.disabled = false
+    uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>업로드'
+  }
+}
+
+/**
+ * Show upload results
+ */
+function showUploadResults(results) {
+  const resultsSection = document.getElementById('uploadResults')
+  const resultsContent = document.getElementById('resultsContent')
+  
+  resultsSection.classList.remove('hidden')
+  
+  resultsContent.innerHTML = `
+    <div class="space-y-4">
+      <!-- Success -->
+      ${results.success.length > 0 ? `
+        <div>
+          <h4 class="font-medium text-green-600 mb-2">
+            <i class="fas fa-check-circle mr-2"></i>성공 (${results.success.length}개)
+          </h4>
+          <div class="space-y-1 text-sm">
+            ${results.success.slice(0, 10).map(item => `
+              <div class="text-gray-600">
+                행 ${item.row}: ${item.task} (ID: ${item.id})
+              </div>
+            `).join('')}
+            ${results.success.length > 10 ? `<div class="text-gray-500">... 외 ${results.success.length - 10}개</div>` : ''}
+          </div>
+        </div>
+      ` : ''}
+      
+      <!-- Failed -->
+      ${results.failed.length > 0 ? `
+        <div>
+          <h4 class="font-medium text-red-600 mb-2">
+            <i class="fas fa-exclamation-circle mr-2"></i>실패 (${results.failed.length}개)
+          </h4>
+          <div class="space-y-1 text-sm">
+            ${results.failed.map(item => `
+              <div class="text-red-600">
+                행 ${item.row}: ${item.task} - ${item.error}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `
 }
 
 // ======================
