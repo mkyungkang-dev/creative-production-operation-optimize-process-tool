@@ -16,6 +16,7 @@
 - 🔄 실시간 업데이트 (5초마다 자동 폴링)
 - 👥 사용자 관리 (관리자 전용)
 - 🎨 반응형 디자인 (모바일/태블릿/데스크톱 지원)
+- 💬 **Slack 통합** - 슬랙에서 `/task` 명령어로 작업 자동 생성! ⭐ NEW!
 
 ## 🌐 URL
 
@@ -30,6 +31,7 @@
 - ☁️ **[Cloudflare 배포 가이드](CLOUDFLARE_DEPLOY_GUIDE.md)** - 프로덕션 배포 방법
 - 👥 **[팀 협업 가이드](TEAM_COLLABORATION_GUIDE.md)** - GitHub 협업 워크플로우
 - 🚀 **[GitHub 배포 가이드](GITHUB_DEPLOY_GUIDE.md)** - GitHub 수동 배포 방법
+- 💬 **[Slack 통합 가이드](SLACK_INTEGRATION_GUIDE.md)** - Slack으로 작업 자동 생성 ⭐ NEW!
 
 ## 🧪 테스트 계정
 
