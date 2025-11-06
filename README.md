@@ -20,8 +20,8 @@
 ## 🌐 URL
 
 - **개발 서버**: https://3000-ikt840v0sn38orwf825jj-ad490db5.sandbox.novita.ai
-- **GitHub**: (배포 대기 중)
-- **Cloudflare Pages**: (배포 대기 중)
+- **GitHub**: https://github.com/mkyungkang-dev/creative-production-operation-optimize-process-tool
+- **Cloudflare Pages**: (배포 가능 - Cloudflare API 키 필요)
 
 ## 🧪 테스트 계정
 
