@@ -1,5 +1,27 @@
 # 🎯 Slack 앱 설정 단계별 가이드
 
+## 🚨 중요 공지
+
+**"봇 사용자가 없습니다" 오류를 방지하려면:**
+- ✅ **반드시 Step 4 (봇 사용자 추가)를 먼저 완료하세요!**
+- ✅ OAuth & Permissions에서 `commands` scope 추가 필수
+- ✅ 봇 권한 없이 설치하면 오류가 발생합니다
+
+---
+
+## ⚡ 빠른 가이드 (5분 완료)
+
+**이미 오류가 발생했나요?** → [트러블슈팅 섹션](#문제-해결)으로 바로 이동
+
+**처음 설정하시나요?** 다음 순서대로 진행하세요:
+1. Slack API에서 앱 생성 (Step 1-3)
+2. **⭐ 봇 사용자 추가 (Step 4) - 필수!**
+3. 슬래시 명령어 추가 (Step 5)
+4. 앱 설치 (Step 7)
+5. 테스트 (Step 8)
+
+---
+
 ## 📋 준비물
 
 - ✅ Slack 워크스페이스 (없으면 무료로 생성: https://slack.com)
@@ -68,16 +90,63 @@ Work Manager
 
 ---
 
-## ⚙️ Step 4: 슬래시 명령어 추가
+## 🤖 Step 4: 봇 사용자 추가 (필수!)
 
-### 4-1. 왼쪽 메뉴에서 "Slash Commands" 클릭
+### 4-1. 왼쪽 메뉴에서 "OAuth & Permissions" 클릭
+- 왼쪽 사이드바에 "Features" 섹션이 있습니다
+- 그 아래 "OAuth & Permissions" 클릭
+
+### 4-2. "Scopes" 섹션으로 스크롤
+페이지를 아래로 내리면 "Scopes" 섹션이 있습니다
+
+### 4-3. "Bot Token Scopes" 찾기
+두 가지 섹션이 있습니다:
+- User Token Scopes (건너뜁니다)
+- **Bot Token Scopes** ← 여기에 추가!
+
+### 4-4. "Add an OAuth Scope" 버튼 클릭
+"Bot Token Scopes" 섹션의 버튼을 클릭하세요
+
+### 4-5. 다음 권한들을 하나씩 추가
+
+**추가할 권한 (Scopes):**
+
+1️⃣ **commands**
+```
+commands
+```
+- 설명: Add shortcuts and/or slash commands that people can use
+- 필수! 슬래시 커맨드를 사용하려면 꼭 필요합니다
+
+2️⃣ **chat:write** (선택사항이지만 권장)
+```
+chat:write
+```
+- 설명: Send messages as the bot
+- 나중에 봇이 메시지를 보낼 수 있게 합니다
+
+각 권한을 추가할 때마다:
+1. "Add an OAuth Scope" 버튼 클릭
+2. 드롭다운에서 권한 이름 검색 (예: `commands`)
+3. 해당 권한 클릭하여 추가
+
+### 4-6. 완료 확인
+"Bot Token Scopes" 섹션에 다음과 같이 표시되어야 합니다:
+- ✅ commands
+- ✅ chat:write (추가했다면)
+
+---
+
+## ⚙️ Step 5: 슬래시 명령어 추가
+
+### 5-1. 왼쪽 메뉴에서 "Slash Commands" 클릭
 - 왼쪽 사이드바에 "Features" 섹션이 있습니다
 - 그 아래 "Slash Commands" 클릭
 
-### 4-2. "Create New Command" 버튼 클릭
+### 5-2. "Create New Command" 버튼 클릭
 우측 상단의 버튼을 클릭하세요
 
-### 4-3. 명령어 정보 입력
+### 5-3. 명령어 정보 입력
 
 **Command (명령어):**
 ```
@@ -106,20 +175,20 @@ https://3000-ikt840v0sn38orwf825jj-ad490db5.sandbox.novita.ai/api/slack/command
 create 생산팀 작업명 2025-11-20
 ```
 
-### 4-4. "Save" 버튼 클릭
+### 5-4. "Save" 버튼 클릭
 모든 정보를 입력했으면 아래 "Save" 버튼 클릭!
 
 ---
 
-## 🎨 Step 5: 앱 아이콘 설정 (선택사항)
+## 🎨 Step 6: 앱 아이콘 설정 (선택사항)
 
-### 5-1. "Basic Information" 클릭
+### 6-1. "Basic Information" 클릭
 왼쪽 메뉴의 "Settings" → "Basic Information"
 
-### 5-2. "Display Information" 섹션
+### 6-2. "Display Information" 섹션
 스크롤을 아래로 내리면 있습니다
 
-### 5-3. 아이콘 업로드
+### 6-3. 아이콘 업로드
 - "App Icon & Preview" 섹션
 - 512x512 PNG 이미지 업로드
 - 또는 기본 아이콘 사용
@@ -130,49 +199,57 @@ create 생산팀 작업명 2025-11-20
 - 🚀 (로켓)
 - 📊 (차트)
 
-### 5-4. "Save Changes" 클릭
+### 6-4. "Save Changes" 클릭
 
 ---
 
-## 🔧 Step 6: 워크스페이스에 앱 설치
+## 🔧 Step 7: 워크스페이스에 앱 설치
 
-### 6-1. "Install App" 클릭
+⚠️ **중요!** Step 4에서 Bot Token Scopes를 추가하셨나요? 
+- **추가 안 했다면** → Step 4로 돌아가세요!
+- **추가 했다면** → 계속 진행하세요!
+
+### 7-1. "Install App" 클릭
 왼쪽 메뉴의 "Settings" → "Install App"
 
-### 6-2. "Install to Workspace" 버튼 클릭
-큰 버튼이 있습니다
+### 7-2. "Install to Workspace" 버튼 클릭
+큰 초록색 버튼이 있습니다
 
-### 6-3. 권한 승인 페이지
-Slack이 새 창/탭을 엽니다
+### 7-3. 권한 승인 페이지
+Slack이 새 창/탭을 열고 권한 요청 페이지가 나타납니다
 
 다음 권한을 요청합니다:
 - ✅ `commands` - Add shortcuts and/or slash commands
+- ✅ `chat:write` - Send messages as @생산물류관리 (추가했다면)
 
-### 6-4. "Allow" 버튼 클릭
+### 7-4. "Allow" 버튼 클릭
 초록색 "Allow" 버튼을 클릭하세요!
+
+### 7-5. 설치 완료!
+"Your app was installed to [워크스페이스명]" 메시지가 나타나면 성공입니다! 🎉
 
 ---
 
-## 🎉 Step 7: 테스트하기!
+## 🎉 Step 8: 테스트하기!
 
-### 7-1. Slack 워크스페이스 열기
+### 8-1. Slack 워크스페이스 열기
 - 브라우저: https://app.slack.com
 - 또는 Slack 앱 실행
 
-### 7-2. 아무 채널 선택
+### 8-2. 아무 채널 선택
 - #general
 - #test
 - 또는 본인의 DM (Direct Message to yourself)
 
-### 7-3. 명령어 입력
+### 8-3. 명령어 입력
 메시지 입력창에 다음을 입력:
 ```
 /task create 생산팀 테스트작업 2025-11-20
 ```
 
-### 7-4. Enter 키 누르기!
+### 8-4. Enter 키 누르기!
 
-### 7-5. 응답 확인
+### 8-5. 응답 확인
 몇 초 후 다음과 같은 응답이 나타납니다:
 ```
 ✅ 작업이 생성되었습니다!
@@ -186,26 +263,51 @@ Slack이 새 창/탭을 엽니다
 
 ---
 
-## ✅ Step 8: 웹사이트에서 확인
+## ✅ Step 9: 웹사이트에서 확인
 
-### 8-1. 브라우저에서 웹사이트 열기
+### 9-1. 브라우저에서 웹사이트 열기
 ```
 https://3000-ikt840v0sn38orwf825jj-ad490db5.sandbox.novita.ai
 ```
 
-### 8-2. 로그인
+### 9-2. 로그인
 - 이메일: `admin@company.com`
 - 비밀번호: `password123`
 
-### 8-3. "작업 관리" 메뉴 클릭
+### 9-3. "작업 관리" 메뉴 클릭
 왼쪽 사이드바에서 "작업 관리" 클릭
 
-### 8-4. 방금 만든 작업 확인!
+### 9-4. 방금 만든 작업 확인!
 "테스트작업"이라는 작업이 목록에 나타납니다! 🎉
 
 ---
 
-## 🎓 추가 명령어 테스트
+## 👥 Step 10: 팀원 온보딩
+
+### 10-1. Slack 채널에 공지하기
+팀 채널(예: #general)에 다음 메시지를 공유하세요:
+
+```
+📢 새로운 작업 관리 봇이 추가되었습니다! 🎉
+
+이제 Slack에서 직접 작업을 만들고 관리할 수 있습니다.
+
+✅ 사용법:
+/task create 생산팀 작업명 2025-11-20
+/task complete [작업ID]
+/task status [작업ID] 진행중
+/task comment [작업ID] 댓글내용
+
+📚 자세한 사용법:
+https://github.com/mkyungkang-dev/creative-production-operation-optimize-process-tool/blob/main/SLACK_INTEGRATION_GUIDE.md
+```
+
+### 10-2. 팀원들에게 테스트 요청
+각자 테스트 작업을 만들어보도록 안내하세요!
+
+---
+
+## 🎓 Step 11: 추가 명령어 테스트
 
 이제 다른 명령어들도 테스트해보세요:
 
@@ -268,6 +370,42 @@ dispatch_failed
 3. **Slash Commands 설정 다시 확인**
    - Slack API → Your App → Slash Commands
    - Request URL 재입력 및 Save
+
+---
+
+### ❌ "앱에 설치할 봇 사용자가 없습니다" 오류
+
+**증상:**
+```
+생산물류관리 앱에 설치할 봇 사용자가 없습니다.
+이 앱은 워크스페이스에 봇을 설치할 권한을 요청하지만 
+현재는 봇으로 구성되어 있지 않습니다.
+```
+
+**원인:**
+Bot Token Scopes를 추가하지 않고 설치하려고 했습니다.
+
+**해결방법:**
+
+1. **OAuth & Permissions 페이지로 이동**
+   - Slack API → Your App → OAuth & Permissions
+
+2. **"Bot Token Scopes" 섹션 찾기**
+   - 페이지를 스크롤 다운
+
+3. **"Add an OAuth Scope" 클릭**
+   - `commands` 추가 (필수!)
+   - `chat:write` 추가 (권장)
+
+4. **앱 재설치**
+   - Install App 페이지로 이동
+   - "Reinstall to Workspace" 버튼 클릭
+   - 권한 승인
+
+5. **완료!**
+   - 이제 봇이 정상적으로 설치됩니다 ✅
+
+⚠️ **예방:** 항상 **Step 4 (봇 사용자 추가)**를 먼저 완료한 후 설치하세요!
 
 ---
 
@@ -351,41 +489,9 @@ Slack 유저네임이 DB 사용자와 매칭 안 됨
 
 ---
 
-## 📱 Step 9: 팀원들에게 공유
+## 🎨 Step 12: 고급 설정 (선택사항)
 
-### 9-1. Slack 채널에 공지
-```
-🎉 새로운 기능: Slack에서 작업 관리!
-
-이제 Slack에서 /task 명령어로 작업을 관리할 수 있습니다!
-
-📝 작업 생성:
-/task create 생산팀 작업명 2025-11-20
-
-✅ 작업 완료:
-/task complete 작업ID
-
-🔄 상태 변경:
-/task status 작업ID 진행중
-
-💬 댓글 추가:
-/task comment 작업ID 댓글내용
-
-자세한 사용법은 여기서:
-https://github.com/mkyungkang-dev/creative-production-operation-optimize-process-tool/blob/main/SLACK_INTEGRATION_GUIDE.md
-```
-
-### 9-2. 명령어 치트시트 핀 고정
-위 메시지를 채널에 핀(Pin)으로 고정하세요:
-- 메시지에 마우스 오버
-- "..." (More actions) 클릭
-- "Pin to channel" 선택
-
----
-
-## 🎨 Step 10: 고급 설정 (선택사항)
-
-### 10-1. 앱 이름 및 설명 개선
+### 12-1. 앱 이름 및 설명 개선
 
 **"Basic Information"** 페이지:
 
@@ -405,21 +511,21 @@ https://github.com/mkyungkang-dev/creative-production-operation-optimize-process
 /task 명령어로 작업 생성, 완료 처리, 상태 변경, 댓글 추가가 가능합니다.
 ```
 
-### 10-2. Background Color 설정
+### 12-2. Background Color 설정
 앱 색상 커스터마이징:
 - Primary Color: `#3B82F6` (파란색)
 - 또는 `#10B981` (초록색)
 
 ---
 
-## 🔒 Step 11: 보안 설정 (프로덕션용)
+## 🔒 Step 13: 보안 설정 (프로덕션용)
 
-### 11-1. Signing Secret 확인
+### 13-1. Signing Secret 확인
 "Basic Information" → "App Credentials" 섹션:
 - **Signing Secret** 값 확인
 - "Show" 버튼 클릭하여 복사
 
-### 11-2. 환경 변수 설정 (배포 후)
+### 13-2. 환경 변수 설정 (배포 후)
 ```bash
 npx wrangler pages secret put SLACK_SIGNING_SECRET --project-name webapp
 ```
@@ -430,7 +536,7 @@ npx wrangler pages secret put SLACK_SIGNING_SECRET --project-name webapp
 
 ---
 
-## 📊 Step 12: 사용량 모니터링
+## 📊 Step 14: 사용량 모니터링
 
 ### 12-1. Analytics 확인
 "Your Apps" → 앱 선택 → "Analytics"
@@ -454,14 +560,23 @@ npx wrangler pages secret put SLACK_SIGNING_SECRET --project-name webapp
 
 설정이 모두 완료되었는지 확인하세요:
 
-- [ ] Slack API에서 앱 생성
-- [ ] 슬래시 명령어 `/task` 추가
-- [ ] Request URL 정확히 입력
-- [ ] 워크스페이스에 앱 설치
-- [ ] Slack에서 명령어 테스트
-- [ ] 웹사이트에서 작업 확인
-- [ ] 팀원들에게 사용법 공유
-- [ ] 채널에 공지 및 핀 고정
+### 필수 단계
+- [ ] Step 1-3: Slack API에서 앱 생성
+- [ ] Step 4: **봇 사용자 추가** (OAuth & Permissions에서 Bot Token Scopes 추가) ⭐ 중요!
+  - [ ] `commands` scope 추가
+  - [ ] `chat:write` scope 추가 (권장)
+- [ ] Step 5: 슬래시 명령어 `/task` 추가
+- [ ] Step 5: Request URL 정확히 입력
+- [ ] Step 7: 워크스페이스에 앱 설치 (봇 권한 승인)
+- [ ] Step 8: Slack에서 명령어 테스트
+- [ ] Step 9: 웹사이트에서 작업 확인
+- [ ] Step 10: 팀원들에게 사용법 공유
+
+### 선택 단계
+- [ ] Step 6: 앱 아이콘 설정
+- [ ] Step 12: 고급 설정 (앱 이름, 색상)
+- [ ] Step 13: 보안 설정 (Signing Secret)
+- [ ] Step 14: 사용량 모니터링
 
 ---
 
