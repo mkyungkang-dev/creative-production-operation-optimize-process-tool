@@ -16,7 +16,8 @@
 - 🔄 실시간 업데이트 (5초마다 자동 폴링)
 - 👥 사용자 관리 (관리자 전용)
 - 🎨 반응형 디자인 (모바일/태블릿/데스크톱 지원)
-- 💬 **Slack 통합** - 슬랙에서 `/task` 명령어로 작업 자동 생성! ⭐ NEW!
+- 💬 **Slack 통합** - 슬랙에서 `/task` 명령어로 작업 자동 생성! ⭐
+- 📊 **엑셀 파일 업로드** - 엑셀로 여러 작업 한번에 등록/업데이트! ⭐ NEW!
 
 ## 🌐 URL
 
@@ -31,7 +32,8 @@
 - ☁️ **[Cloudflare 배포 가이드](CLOUDFLARE_DEPLOY_GUIDE.md)** - 프로덕션 배포 방법
 - 👥 **[팀 협업 가이드](TEAM_COLLABORATION_GUIDE.md)** - GitHub 협업 워크플로우
 - 🚀 **[GitHub 배포 가이드](GITHUB_DEPLOY_GUIDE.md)** - GitHub 수동 배포 방법
-- 💬 **[Slack 통합 가이드](SLACK_INTEGRATION_GUIDE.md)** - Slack으로 작업 자동 생성 ⭐ NEW!
+- 💬 **[Slack 통합 가이드](SLACK_INTEGRATION_GUIDE.md)** - Slack으로 작업 자동 생성 ⭐
+- 📊 **[엑셀 업로드 가이드](EXCEL_UPLOAD_GUIDE.md)** - 엑셀 파일로 작업 일괄 등록/수정 ⭐ NEW!
 
 ## 🧪 테스트 계정
 
@@ -77,6 +79,8 @@
 - `POST /api/tasks` - 새 작업 생성
 - `PUT /api/tasks/:id` - 작업 수정
 - `DELETE /api/tasks/:id` - 작업 삭제 (관리자만)
+- `POST /api/tasks/bulk` - 여러 작업 일괄 생성 ⭐ NEW!
+- `PUT /api/tasks/bulk` - 여러 작업 일괄 업데이트 ⭐ NEW!
 
 ### 댓글 API
 - `POST /api/tasks/:id/comments` - 댓글 추가
@@ -158,6 +162,7 @@ pm2 stop webapp
 - **Chart.js**: 데이터 시각화
 - **Axios**: HTTP 클라이언트
 - **Font Awesome**: 아이콘
+- **SheetJS (xlsx)**: 엑셀 파일 파싱 ⭐ NEW!
 
 ### DevOps
 - **Wrangler**: Cloudflare 개발 도구
@@ -190,13 +195,14 @@ webapp/
 ## 🎯 다음 개발 계획
 
 ### 예정된 기능
-- 📊 고급 분석 및 리포트 (Excel/PDF 내보내기)
+- 📊 고급 분석 및 리포트 (PDF 내보내기)
 - 📧 이메일 알림 (SendGrid 연동)
 - 🔍 전체 검색 기능
 - 📅 캘린더 뷰
 - 🏷️ 태그 시스템
 - 📎 파일 첨부 (Cloudflare R2)
 - 🌍 다국어 지원 (i18n)
+- 📱 카카오톡 알림 연동
 
 ### 성능 개선
 - 무한 스크롤/페이지네이션
@@ -254,7 +260,7 @@ npm run deploy:prod
 
 1. **WebSocket 미지원**: Cloudflare Workers는 WebSocket 서버를 지원하지 않아 폴링(5초) 방식 사용
 2. **이메일 알림 없음**: 브라우저 내 알림만 지원 (외부 API 연동 필요)
-3. **파일 업로드 미구현**: Cloudflare R2 연동 예정
+3. **첨부 파일 미구현**: Cloudflare R2 연동 예정 (현재는 엑셀 데이터 업로드만 지원)
 
 ## 🚀 빠른 시작 (팀원용)
 
