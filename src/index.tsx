@@ -10,6 +10,126 @@ import { serveStatic } from 'hono/cloudflare-workers'
 import { authMiddleware, requireRole } from './middleware/auth'
 import { generateToken, hashPassword, verifyPassword } from './utils/auth'
 
+type ApplicantEvaluationCriteria = {
+  requiresJobMatch: boolean
+  minExperienceYears: number
+  maxExperienceYears: number
+  maxDesiredSalary: number
+  requiredEducationKeywords: string[]
+  minAge: number
+  maxAge: number
+}
+
+type ApplicantCandidate = {
+  name?: string
+  jobMatch?: boolean | string
+  matchesPosting?: boolean | string
+  experienceYears?: number | string
+  desiredSalary?: number | string
+  education?: string
+  age?: number | string
+  gender?: string
+  [key: string]: unknown
+}
+
+const defaultApplicantCriteria: ApplicantEvaluationCriteria = {
+  requiresJobMatch: true,
+  minExperienceYears: 1,
+  maxExperienceYears: 2,
+  maxDesiredSalary: 4000,
+  requiredEducationKeywords: ['대졸', '학사', 'bachelor'],
+  minAge: 30,
+  maxAge: 35
+}
+
+const parseBoolean = (value?: boolean | string): boolean | undefined => {
+  if (value === undefined) return undefined
+  if (typeof value === 'boolean') return value
+
+  const normalized = value.toString().trim().toLowerCase()
+  if (['y', 'yes', 'true', '1', '부합', '적합', '맞음', '네'].includes(normalized)) return true
+  if (['n', 'no', 'false', '0', '미부합', '부적합', '아니오'].includes(normalized)) return false
+  return undefined
+}
+
+const parseNumberValue = (value?: number | string): number | undefined => {
+  if (value === undefined) return undefined
+  if (typeof value === 'number') return isNaN(value) ? undefined : value
+
+  const cleaned = value.replace(/,/g, '').match(/\d+(\.\d+)?/)
+  if (!cleaned) return undefined
+
+  const parsed = parseFloat(cleaned[0])
+  return isNaN(parsed) ? undefined : parsed
+}
+
+const evaluateApplicant = (candidate: ApplicantCandidate, criteria: ApplicantEvaluationCriteria) => {
+  const reasons: string[] = []
+  let passedCriteria = 0
+
+  const jobMatchValue = parseBoolean(candidate.jobMatch ?? candidate.matchesPosting)
+  if (criteria.requiresJobMatch) {
+    if (jobMatchValue === false) {
+      reasons.push('채용 공고 조건과 일치하지 않습니다.')
+    } else if (jobMatchValue !== true) {
+      reasons.push('채용 공고 적합 여부 정보가 부족합니다.')
+    } else {
+      passedCriteria += 1
+    }
+  }
+
+  const experienceYears = parseNumberValue(candidate.experienceYears)
+  if (experienceYears === undefined) {
+    reasons.push('경력 정보가 부족합니다.')
+  } else if (experienceYears < criteria.minExperienceYears || experienceYears > criteria.maxExperienceYears) {
+    reasons.push(`경력 ${criteria.minExperienceYears}~${criteria.maxExperienceYears}년 조건에 맞지 않습니다.`)
+  } else {
+    passedCriteria += 1
+  }
+
+  const desiredSalary = parseNumberValue(candidate.desiredSalary)
+  if (desiredSalary === undefined) {
+    reasons.push('희망 연봉 정보가 부족합니다.')
+  } else if (desiredSalary > criteria.maxDesiredSalary) {
+    reasons.push(`희망 연봉이 기준(${criteria.maxDesiredSalary}만원)보다 높습니다.`)
+  } else {
+    passedCriteria += 1
+  }
+
+  const educationText = candidate.education?.toString().toLowerCase()
+  if (!educationText) {
+    reasons.push('학력 정보가 부족합니다.')
+  } else {
+    const matchesEducation = criteria.requiredEducationKeywords.some((keyword) =>
+      educationText.includes(keyword.toLowerCase())
+    )
+    if (!matchesEducation) {
+      reasons.push('필수 학력(대졸) 조건을 충족하지 않습니다.')
+    } else {
+      passedCriteria += 1
+    }
+  }
+
+  const age = parseNumberValue(candidate.age)
+  if (age === undefined) {
+    reasons.push('연령 정보가 부족합니다.')
+  } else if (age < criteria.minAge || age > criteria.maxAge) {
+    reasons.push(`연령이 ${criteria.minAge}~${criteria.maxAge}세 범위를 벗어납니다.`)
+  } else {
+    passedCriteria += 1
+  }
+
+  const isPass = reasons.length === 0
+
+  return {
+    name: candidate.name || '이름 미기입',
+    pass: isPass,
+    decision: isPass ? 'pass' : 'fail',
+    score: passedCriteria,
+    reasons
+  }
+}
+
 type Bindings = {
   DB: D1Database
 }
@@ -866,6 +986,59 @@ app.get('/api/dashboard/stats', authMiddleware, async (c) => {
     })
   } catch (error) {
     console.error('Get dashboard stats error:', error)
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+})
+
+// ======================
+// Applicant Evaluation Routes
+// ======================
+
+/**
+ * POST /api/applicants/evaluate
+ * 평가 기준과 후보자 데이터를 받아 서류 합격/불합격을 예측합니다.
+ */
+app.post('/api/applicants/evaluate', authMiddleware, requireRole('admin'), async (c) => {
+  try {
+    const body = await c.req.json()
+    const candidates: ApplicantCandidate[] = body.candidates
+    const criteriaInput = body.criteria || {}
+
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return c.json({ error: 'candidates 배열이 필요합니다.' }, 400)
+    }
+
+    const normalizedCriteria: ApplicantEvaluationCriteria = {
+      requiresJobMatch: criteriaInput.requiresJobMatch ?? defaultApplicantCriteria.requiresJobMatch,
+      minExperienceYears: parseNumberValue(criteriaInput.minExperienceYears) ?? defaultApplicantCriteria.minExperienceYears,
+      maxExperienceYears: parseNumberValue(criteriaInput.maxExperienceYears) ?? defaultApplicantCriteria.maxExperienceYears,
+      maxDesiredSalary: parseNumberValue(criteriaInput.maxDesiredSalary) ?? defaultApplicantCriteria.maxDesiredSalary,
+      requiredEducationKeywords: Array.isArray(criteriaInput.requiredEducationKeywords)
+        ? criteriaInput.requiredEducationKeywords
+        : defaultApplicantCriteria.requiredEducationKeywords,
+      minAge: parseNumberValue(criteriaInput.minAge) ?? defaultApplicantCriteria.minAge,
+      maxAge: parseNumberValue(criteriaInput.maxAge) ?? defaultApplicantCriteria.maxAge
+    }
+
+    const results = candidates.map((candidate, index) => {
+      const evaluation = evaluateApplicant(candidate, normalizedCriteria)
+      return {
+        ...evaluation,
+        index: index + 2 // Excel 헤더(1행)를 고려한 가독성 있는 행 번호
+      }
+    })
+
+    return c.json({
+      summary: {
+        total: results.length,
+        pass: results.filter((r) => r.pass).length,
+        fail: results.filter((r) => !r.pass).length
+      },
+      criteria: normalizedCriteria,
+      results
+    })
+  } catch (error) {
+    console.error('Applicant evaluation error:', error)
     return c.json({ error: 'Internal server error' }, 500)
   }
 })
